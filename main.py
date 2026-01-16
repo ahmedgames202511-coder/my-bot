@@ -2,8 +2,8 @@ import telebot
 from telebot import types
 import requests
 import io
+import time
 
-# التوكن بتاعك
 API_TOKEN = '8558774336:AAE_XaoYNvmRGZAeb5jdSABZDmPnr4p9Eqk'
 bot = telebot.TeleBot(API_TOKEN)
 
@@ -17,66 +17,61 @@ def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎨 صناعة صورة")
     markup.add("💰 رصيدي", "⚙️ لوحة المدير")
-    bot.send_message(message.chat.id, f"أهلاً بك يا {message.from_user.first_name}!\nرصيدك: {users_data[uid]} كريدت 💰", reply_markup=markup)
+    bot.send_message(message.chat.id, f"أهلاً يا {message.from_user.first_name}!\nرصيدك: {users_data[uid]} 💰", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == "🎨 صناعة صورة")
 def ask(message):
     if users_data.get(message.from_user.id, 0) >= 50:
-        msg = bot.reply_to(message, "📝 أرسل وصف الصورة الآن (بالانجليزية):\nمثال: black cat in space")
+        msg = bot.reply_to(message, "📝 اكتب وصف الصورة (بالانجليزية):\nمثال: cat with sunglasses")
         bot.register_next_step_handler(msg, generate)
     else:
-        bot.reply_to(message, "❌ رصيدك غير كافي (تحتاج 50 كريدت)")
+        bot.reply_to(message, "❌ رصيدك مخلص! شحن من: @AHMEDST55")
 
 def generate(message):
     uid = message.from_user.id
     prompt = message.text
-    
-    if prompt in ["🎨 صناعة صورة", "💰 رصيدي", "⚙️ لوحة المدير"]:
-        bot.reply_to(message, "تم إلغاء الطلب.")
-        return
+    if prompt in ["🎨 صناعة صورة", "💰 رصيدي", "⚙️ لوحة المدير"]: return
 
     users_data[uid] -= 50
-    bot.reply_to(message, "⏳ جاري توليد الصورة بالذكاء الاصطناعي... انتظر لحظة.")
-    
+    bot.reply_to(message, "⏳ جاري الرسم... انتظر ثواني.")
+
     try:
-        # محرك توليد الصور المباشر (أكثر استقراراً)
-        image_url = f"https://image.pollinations.ai/prompt/{prompt}?nologo=true"
+        # رابط المحرك مع إضافة وقت عشوائي لضمان صورة جديدة
+        seed = time.time()
+        url = f"https://image.pollinations.ai/prompt/{prompt}?seed={seed}&nologo=true"
         
-        # تحميل الصورة للتأكد من إرسالها كملف
-        response = requests.get(image_url)
+        # محاولة تحميل الصورة فعلياً
+        response = requests.get(url, timeout=30)
         if response.status_code == 200:
             photo = io.BytesIO(response.content)
-            photo.name = 'image.png'
-            bot.send_photo(message.chat.id, photo, caption=f"✅ تمت الصورة لـ: {prompt}\n💰 الباقي: {users_data[uid]}")
+            bot.send_photo(message.chat.id, photo, caption=f"✅ تمت الصورة!\n💰 الباقي: {users_data[uid]}")
         else:
-            raise Exception("Failed to load image")
-            
-    except Exception as e:
-        bot.reply_to(message, "⚠️ عذراً، السيرفر مشغول حالياً. تم إعادة رصيدك.")
+            raise Exception("Error")
+    except:
+        bot.reply_to(message, "⚠️ السيرفر مشغول، جرب تاني كمان شوية.")
         users_data[uid] += 50
 
 @bot.message_handler(func=lambda m: m.text == "💰 رصيدي")
 def bal(message):
-    bot.reply_to(message, f"💰 رصيدك الحالي: {users_data.get(message.from_user.id, 0)}")
+    bot.reply_to(message, f"💰 رصيدك: {users_data.get(message.from_user.id, 0)}")
 
 @bot.message_handler(func=lambda m: m.text == "⚙️ لوحة المدير")
 def adm(message):
-    msg = bot.reply_to(message, "🔑 اكتب باسوورد المدير:")
+    msg = bot.reply_to(message, "🔑 باسوورد المدير؟")
     bot.register_next_step_handler(msg, auth)
 
 def auth(message):
     if message.text == PASSWORD:
-        msg = bot.reply_to(message, "✅ أهلاً يا مدير!\nابعت: ID+نقاط")
+        msg = bot.reply_to(message, "ابعت: ID+نقاط")
         bot.register_next_step_handler(msg, add)
-    else: bot.reply_to(message, "❌ الباسوورد غلط!")
+    else: bot.reply_to(message, "❌ خطأ!")
 
 def add(message):
     try:
-        target_id, pts = message.text.split('+')
-        users_data[int(target_id)] = users_data.get(int(target_id), 0) + int(pts)
-        bot.reply_to(message, f"تم شحن {pts} نقطة للحساب {target_id} ✅")
-    except: bot.reply_to(message, "خطأ! اكتبها كدة: ID+نقاط")
+        target, pts = message.text.split('+')
+        users_data[int(target)] = users_data.get(int(target), 0) + int(pts)
+        bot.reply_to(message, "تم الشحن ✅")
+    except: bot.reply_to(message, "خطأ في التنسيق!")
 
 if __name__ == "__main__":
     bot.infinity_polling()
-        

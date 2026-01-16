@@ -5,10 +5,11 @@ import io
 import time
 from flask import Flask
 import threading
+import random
 
 app = Flask('')
 @app.route('/')
-def home(): return "OK"
+def home(): return "Bot is Running"
 def run_web(): app.run(host='0.0.0.0', port=10000)
 
 API_TOKEN = '8558774336:AAE_XaoYNvmRGZAeb5jdSABZDmPnr4p9Eqk'
@@ -35,7 +36,7 @@ def show_id(message):
 @bot.message_handler(func=lambda m: m.text == "🎨 صناعة صورة (50)")
 def ask_p(message):
     if users_data.get(message.from_user.id, 0) >= 50:
-        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالإنجليزي (مثل: spider man):")
+        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالإنجليزي بدقة:\nمثال: A futuristic city with flying cars")
         bot.register_next_step_handler(msg, gen_p)
     else: bot.reply_to(message, "❌ رصيدك خلص!")
 
@@ -45,32 +46,24 @@ def gen_p(message):
     if prompt in ["🎨 صناعة صورة (50)", "💰 رصيدي والـ ID", "⚙️ لوحة المدير"]: return
 
     users_data[uid] -= 50
-    bot.reply_to(message, "⏳ جاري الرسم... (قد يستغرق 10 ثواني)")
+    bot.reply_to(message, f"⏳ جاري تخيل صورتك لـ: ({prompt})...")
     
-    # محاولة توليد الصورة
     try:
-        # إضافة seed متغير عشان الصورة تطلع مختلفة كل مرة
-        img_url = f"https://image.pollinations.ai/prompt/{prompt}?nologo=true&seed={time.time()}"
+        # استخدام رابط مباشر ومحدث لضمان دقة الوصف
+        seed = random.randint(1, 1000000)
+        img_url = f"https://pollinations.ai/p/{prompt}?width=1024&height=1024&seed={seed}&model=flux"
         
-        # الانتظار قليلاً لضمان استجابة السيرفر
-        time.sleep(2) 
-        res = requests.get(img_url, timeout=40)
+        res = requests.get(img_url, timeout=60)
         
         if res.status_code == 200:
-            bot.send_photo(message.chat.id, io.BytesIO(res.content), caption=f"✅ تمت الصورة لـ: {prompt}\n💰 الباقي: {users_data[uid]}")
+            photo = io.BytesIO(res.content)
+            bot.send_photo(message.chat.id, photo, caption=f"✅ تمت الصورة بنجاح!\n💰 الباقي: {users_data[uid]}")
         else:
-            raise Exception("Retry")
+            raise Exception("Fail")
             
     except:
-        # محاولة ثانية بمحرك احتياطي لو الأول فشل
-        try:
-            time.sleep(3)
-            img_url_backup = f"https://pollinations.ai/p/{prompt}?width=1024&height=1024&nologo=true"
-            res_backup = requests.get(img_url_backup, timeout=40)
-            bot.send_photo(message.chat.id, io.BytesIO(res_backup.content), caption=f"✅ تمت الصورة (محاولة ثانية)!\n💰 الباقي: {users_data[uid]}")
-        except:
-            bot.reply_to(message, "⚠️ السيرفر عليه ضغط كبير، جرب كمان دقيقة. (تم إعادة الكريدت)")
-            users_data[uid] += 50
+        bot.reply_to(message, "⚠️ فشل السيرفر في فهم الوصف، حاول مرة أخرى بوصف أوضح. (تم إعادة الكريدت)")
+        users_data[uid] += 50
 
 @bot.message_handler(func=lambda m: m.text == "⚙️ لوحة المدير")
 def admin_p(message):
@@ -95,4 +88,4 @@ if __name__ == "__main__":
     t = threading.Thread(target=run_web)
     t.start()
     bot.infinity_polling()
-            
+        

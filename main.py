@@ -17,72 +17,73 @@ def start(message):
     if uid not in users_data: users_data[uid] = 100
     
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🎨 صناعة صورة")
-    markup.add("💰 رصيدي", "⚙️ لوحة المدير")
+    markup.add("🎨 صناعة صورة (50)", "🎬 صناعة فيديو (150)")
+    markup.add("💰 رصيدي والـ ID", "⚙️ لوحة المدير")
     
-    # إظهار الـ ID بوضوح في رسالة الترحيب
-    msg = (f"أهلاً يا {message.from_user.first_name}!\n\n"
-           f"💰 رصيدك: {users_data[uid]} كريدت\n"
-           f"🆔 الـ ID الخاص بك: `{uid}`\n\n"
-           "ارسل الـ ID للمدير إذا أردت شحن رصيدك.")
+    # رسالة ترحيب فيها الـ ID وااااضح جداً
+    msg = (f"✨ أهلاً بك يا {message.from_user.first_name}\n\n"
+           f"🆔 الـ ID الخاص بك هو: {uid}\n"
+           f"💰 رصيدك الحالي: {users_data[uid]} كريدت\n\n"
+           "ℹ️ لزيادة رصيدك ارسل الـ ID للمدير: @AHMEDST55")
     
-    bot.send_message(message.chat.id, msg, reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(message.chat.id, msg, reply_markup=markup)
 
-@bot.message_handler(func=lambda m: m.text == "🎨 صناعة صورة")
-def ask(message):
+@bot.message_handler(func=lambda m: m.text == "💰 رصيدي والـ ID")
+def show_info(message):
+    uid = message.from_user.id
+    balance = users_data.get(uid, 0)
+    bot.reply_to(message, f"👤 معلومات حسابك:\n\n🆔 الخاص بك: {uid}\n💰 رصيدك: {balance} كريدت")
+
+@bot.message_handler(func=lambda m: m.text == "🎨 صناعة صورة (50)")
+def ask_photo(message):
     if users_data.get(message.from_user.id, 0) >= 50:
-        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالانجليزية الآن:")
-        bot.register_next_step_handler(msg, generate)
+        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالإنجليزية (مثال: red car):")
+        bot.register_next_step_handler(msg, generate_photo)
     else:
-        bot.reply_to(message, "❌ رصيدك مخلص! اطلب شحن من @AHMEDST55")
+        bot.reply_to(message, "❌ رصيدك لا يكفي (تحتاج 50 كريدت)")
 
-def generate(message):
+def generate_photo(message):
     uid = message.from_user.id
     prompt = message.text
-    if prompt in ["🎨 صناعة صورة", "💰 رصيدي", "⚙️ لوحة المدير"]: return
+    if prompt in ["🎨 صناعة صورة (50)", "🎬 صناعة فيديو (150)", "💰 رصيدي والـ ID", "⚙️ لوحة المدير"]: return
 
     users_data[uid] -= 50
-    bot.reply_to(message, "⏳ جاري رسم صورتك...")
-
+    bot.reply_to(message, "⏳ جاري رسم صورتك... انتظر ثواني.")
     try:
         url = f"https://image.pollinations.ai/prompt/{prompt}?nologo=true&seed={time.time()}"
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
-            photo = io.BytesIO(response.content)
-            bot.send_photo(message.chat.id, photo, caption=f"✅ تمت الصورة لـ: {prompt}\n💰 الباقي: {users_data[uid]}")
-        else:
-            raise Exception("Failed")
+            bot.send_photo(message.chat.id, io.BytesIO(response.content), caption=f"✅ تمت الصورة!\n💰 الباقي: {users_data[uid]}")
+        else: raise Exception()
     except:
-        bot.reply_to(message, "⚠️ السيرفر مشغول، جرب تاني.")
+        bot.reply_to(message, "⚠️ فشل السيرفر، تم إعادة الكريدت.")
         users_data[uid] += 50
 
-@bot.message_handler(func=lambda m: m.text == "💰 رصيدي")
-def bal(message):
-    uid = message.from_user.id
-    # إظهار الـ ID هنا أيضاً لتسهيل النسخ
-    bot.reply_to(message, f"💰 رصيدك الحالي: {users_data.get(uid, 0)}\n🆔 الـ ID الخاص بك: `{uid}`", parse_mode="Markdown")
+@bot.message_handler(func=lambda m: m.text == "🎬 صناعة فيديو (150)")
+def ask_video(message):
+    # حالياً فيديوهات ذكاء اصطناعي مكلفة جداً، فالبوت بيبعت رسالة توضيحية
+    bot.reply_to(message, "⚠️ خدمة الفيديوهات قيد التطوير حالياً وسيتم تفعيلها قريباً بـ 150 كريدت!")
 
 @bot.message_handler(func=lambda m: m.text == "⚙️ لوحة المدير")
-def adm(message):
-    msg = bot.reply_to(message, "🔑 باسوورد المدير؟")
-    bot.register_next_step_handler(msg, auth)
+def admin_entry(message):
+    msg = bot.reply_to(message, "🔐 أدخل كلمة سر المدير:")
+    bot.register_next_step_handler(msg, check_admin)
 
-def auth(message):
+def check_admin(message):
     if message.text == PASSWORD:
-        msg = bot.reply_to(message, "✅ أهلاً يا مدير!\nابعت: ID+نقاط (مثال: 12345+500)")
-        bot.register_next_step_handler(msg, add)
-    else: bot.reply_to(message, "❌ خطأ!")
+        msg = bot.reply_to(message, "✅ أهلاً يا مدير!\nارسل الـ ID وعلامة + ثم النقاط\nمثال: 123456+500")
+        bot.register_next_step_handler(msg, add_credits)
+    else: bot.reply_to(message, "❌ كلمة السر خطأ!")
 
-def add(message):
+def add_credits(message):
     try:
         target, pts = message.text.split('+')
-        target_id = int(target.strip())
+        t_id = int(target.strip())
         points = int(pts.strip())
-        users_data[target_id] = users_data.get(target_id, 0) + points
-        bot.reply_to(message, f"تم شحن {points} نقطة للحساب `{target_id}` ✅", parse_mode="Markdown")
-        bot.send_message(target_id, f"🎉 تم إضافة {points} كريدت لرصيدك!")
-    except:
-        bot.reply_to(message, "خطأ! اكتبها كدة: ID+نقاط")
+        users_data[t_id] = users_data.get(t_id, 0) + points
+        bot.reply_to(message, f"✅ تم شحن {points} لـ {t_id}")
+        bot.send_message(t_id, f"🎉 المدير شحن لك {points} كريدت!")
+    except: bot.reply_to(message, "⚠️ خطأ في التنسيق! مثال: ID+100")
 
 if __name__ == "__main__":
     bot.infinity_polling()

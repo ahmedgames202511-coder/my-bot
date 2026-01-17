@@ -27,20 +27,22 @@ def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎨 صناعة صورة (50)")
     markup.add("💰 رصيدي والـ ID", "⚙️ لوحة المدير")
-    bot.send_message(message.chat.id, f"✨ أهلاً يا {message.from_user.first_name}\n🆔 رقم الـ ID: {uid}\n💰 رصيدك: {users_data[uid]}", reply_markup=markup)
+    bot.send_message(message.chat.id, f"✨ أهلاً يا {message.from_user.first_name}\n🆔 الـ ID: {uid}\n💰 الرصيد: {users_data[uid]}", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == "💰 رصيدي والـ ID")
 def show_id(message):
     uid = message.from_user.id
-    bot.reply_to(message, f"🆔 رقمك (ID): {uid}\n💰 رصيدك الحالي: {users_data.get(uid, 0)}")
+    bot.reply_to(message, f"🆔 رقمك: {uid}\n💰 رصيدك الحالي: {users_data.get(uid, 0)}")
 
 @bot.message_handler(func=lambda m: m.text == "🎨 صناعة صورة (50)")
 def ask_p(message):
-    if users_data.get(message.from_user.id, 0) >= 50:
-        msg = bot.reply_to(message, "📝 اكتب وصف الصورة (بالعربي أو بالإنجليزي):")
+    uid = message.from_user.id
+    if users_data.get(uid, 0) >= 50:
+        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالعربي أو الإنجليزي:")
         bot.register_next_step_handler(msg, gen_p)
     else:
-        bot.reply_to(message, "❌ رصيدك غير كافي! اطلب شحن من @AHMEDST55")
+        # الرسالة المطلوبة عند انتهاء الكريدت
+        bot.reply_to(message, f"❌ رصيدك غير كافي لشراء صورة.\n🆔 الـ ID الخاص بك: {uid}\n🛒 لشراء المزيد من الكريدت تواصل مع المطور: @AHMEDST55")
 
 def gen_p(message):
     uid = message.from_user.id
@@ -48,31 +50,35 @@ def gen_p(message):
     if user_prompt in ["🎨 صناعة صورة (50)", "💰 رصيدي والـ ID", "⚙️ لوحة المدير"]: return
 
     users_data[uid] -= 50
-    bot.reply_to(message, "⏳ جاري الترجمة والرسم... انتظر قليلاً.")
+    bot.reply_to(message, "⏳ جاري الرسم بالمحرك المطور...")
     
     try:
-        # ترجمة الوصف تلقائياً للإنجليزي لضمان أفضل جودة
-        english_prompt = translate(user_prompt, 'en')
+        # ترجمة الوصف
+        en_prompt = translate(user_prompt, 'en')
+        seed = random.randint(1, 9999999)
         
-        # محرك صور قوي جداً
-        seed = random.randint(1, 999999)
-        img_url = f"https://pollinations.ai/p/{english_prompt}?width=1024&height=1024&seed={seed}&nologo=true"
+        # المحرك الأول (Flux)
+        img_url = f"https://image.pollinations.ai/prompt/{en_prompt}?seed={seed}&nologo=true"
+        res = requests.get(img_url, timeout=40)
         
-        response = requests.get(img_url, timeout=50)
-        
-        if response.status_code == 200:
-            bot.send_photo(message.chat.id, io.BytesIO(response.content), 
-                           caption=f"✅ تمت الصورة لـ: {user_prompt}\n💰 الباقي: {users_data[uid]}")
+        if res.status_code == 200:
+            bot.send_photo(message.chat.id, io.BytesIO(res.content), caption=f"✅ تمت الصورة لـ: {user_prompt}\n💰 الباقي: {users_data[uid]}")
         else:
-            raise Exception("Error")
+            raise Exception("Retry")
             
     except:
-        bot.reply_to(message, "⚠️ فشل السيرفر، جرب مرة أخرى. (تم إعادة الرصيد)")
-        users_data[uid] += 50
+        # المحرك الاحتياطي (يعمل في حال فشل الأول)
+        try:
+            img_url_backup = f"https://pollinations.ai/p/{en_prompt}?width=1024&height=1024&seed={seed}"
+            res_backup = requests.get(img_url_backup, timeout=40)
+            bot.send_photo(message.chat.id, io.BytesIO(res_backup.content), caption=f"✅ تم الرسم (المحرك الاحتياطي)!\n💰 الباقي: {users_data[uid]}")
+        except:
+            bot.reply_to(message, "⚠️ السيرفرات العالمية مزدحمة حالياً، تم إعادة الكريدت.")
+            users_data[uid] += 50
 
 @bot.message_handler(func=lambda m: m.text == "⚙️ لوحة المدير")
 def admin_p(message):
-    msg = bot.reply_to(message, "🔐 الباسوورد؟")
+    msg = bot.reply_to(message, "🔐 باسوورد المدير؟")
     bot.register_next_step_handler(msg, check_adm)
 
 def check_adm(message):
@@ -85,8 +91,8 @@ def do_add(message):
     try:
         target, pts = message.text.split('+')
         users_data[int(target)] = users_data.get(int(target), 0) + int(pts)
-        bot.reply_to(message, "✅ تم الشحن بنجاح")
-        bot.send_message(int(target), f"🎉 شحن لك المدير {pts} كريدت!")
+        bot.reply_to(message, f"✅ تم شحن {pts} لـ {target}")
+        bot.send_message(int(target), f"🎉 تم إضافة {pts} كريدت لرصيدك من قبل الإدارة!")
     except: bot.reply_to(message, "⚠️ خطأ بالتنسيق!")
 
 if __name__ == "__main__":
@@ -94,4 +100,4 @@ if __name__ == "__main__":
     t.daemon = True
     t.start()
     bot.infinity_polling()
-                     
+        

@@ -5,11 +5,10 @@ import io
 import time
 from flask import Flask
 import threading
-import random
 
 app = Flask('')
 @app.route('/')
-def home(): return "Bot is Running"
+def home(): return "Bot Online"
 def run_web(): app.run(host='0.0.0.0', port=10000)
 
 API_TOKEN = '8558774336:AAE_XaoYNvmRGZAeb5jdSABZDmPnr4p9Eqk'
@@ -25,20 +24,19 @@ def start(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("🎨 صناعة صورة (50)")
     markup.add("💰 رصيدي والـ ID", "⚙️ لوحة المدير")
-    msg = f"✨ أهلاً يا {message.from_user.first_name}\n🆔 الـ ID بتاعك: {uid}\n💰 رصيدك: {users_data[uid]} كريدت"
-    bot.send_message(message.chat.id, msg, reply_markup=markup)
+    bot.send_message(message.chat.id, f"✨ أهلاً يا {message.from_user.first_name}\n🆔 رقم الـ ID: {uid}\n💰 رصيدك: {users_data[uid]}", reply_markup=markup)
 
 @bot.message_handler(func=lambda m: m.text == "💰 رصيدي والـ ID")
 def show_id(message):
     uid = message.from_user.id
-    bot.reply_to(message, f"👤 معلومات الحساب:\n🆔 رقمك: {uid}\n💰 رصيدك: {users_data.get(uid, 0)}")
+    bot.reply_to(message, f"🆔 رقمك: {uid}\n💰 رصيدك: {users_data.get(uid, 0)}")
 
 @bot.message_handler(func=lambda m: m.text == "🎨 صناعة صورة (50)")
 def ask_p(message):
     if users_data.get(message.from_user.id, 0) >= 50:
-        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالإنجليزي بدقة:\nمثال: A futuristic city with flying cars")
+        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالانجليزي:")
         bot.register_next_step_handler(msg, gen_p)
-    else: bot.reply_to(message, "❌ رصيدك خلص!")
+    else: bot.reply_to(message, "❌ رصيدك مخلص!")
 
 def gen_p(message):
     uid = message.from_user.id
@@ -46,28 +44,29 @@ def gen_p(message):
     if prompt in ["🎨 صناعة صورة (50)", "💰 رصيدي والـ ID", "⚙️ لوحة المدير"]: return
 
     users_data[uid] -= 50
-    bot.reply_to(message, f"⏳ جاري تخيل صورتك لـ: ({prompt})...")
+    bot.reply_to(message, "⏳ جاري الرسم.. انتظر ثواني.")
     
     try:
-        # استخدام رابط مباشر ومحدث لضمان دقة الوصف
-        seed = random.randint(1, 1000000)
-        img_url = f"https://pollinations.ai/p/{prompt}?width=1024&height=1024&seed={seed}&model=flux"
+        # رابط المحرك الأساسي (Direct API)
+        # تم استبدال الفراغات بـ %20 لضمان وصول الوصف كاملاً للسيرفر
+        clean_prompt = prompt.replace(" ", "%20")
+        img_url = f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1024&height=1024&nologo=true"
         
-        res = requests.get(img_url, timeout=60)
+        # محاولة طلب الصورة بحد أقصى للوقت 60 ثانية
+        response = requests.get(img_url, timeout=60)
         
-        if res.status_code == 200:
-            photo = io.BytesIO(res.content)
-            bot.send_photo(message.chat.id, photo, caption=f"✅ تمت الصورة بنجاح!\n💰 الباقي: {users_data[uid]}")
+        if response.status_code == 200:
+            bot.send_photo(message.chat.id, io.BytesIO(response.content), caption=f"✅ تم التوليد بنجاح!\n💰 الباقي: {users_data[uid]}")
         else:
-            raise Exception("Fail")
+            raise Exception("Server Error")
             
-    except:
-        bot.reply_to(message, "⚠️ فشل السيرفر في فهم الوصف، حاول مرة أخرى بوصف أوضح. (تم إعادة الكريدت)")
+    except Exception as e:
+        bot.reply_to(message, "⚠️ السيرفر مشغول حالياً، تم إعادة الكريدت لك. جرب مرة أخرى بعد قليل.")
         users_data[uid] += 50
 
 @bot.message_handler(func=lambda m: m.text == "⚙️ لوحة المدير")
 def admin_p(message):
-    msg = bot.reply_to(message, "🔐 أدخل الباسوورد:")
+    msg = bot.reply_to(message, "🔐 الباسوورد؟")
     bot.register_next_step_handler(msg, check_adm)
 
 def check_adm(message):
@@ -80,12 +79,12 @@ def do_add(message):
     try:
         target, pts = message.text.split('+')
         users_data[int(target)] = users_data.get(int(target), 0) + int(pts)
-        bot.reply_to(message, "✅ تم الشحن بنجاح")
+        bot.reply_to(message, "✅ تم الشحن")
         bot.send_message(int(target), f"🎉 شحن لك المدير {pts} كريدت!")
-    except: bot.reply_to(message, "⚠️ خطأ بالتنسيق!")
+    except: bot.reply_to(message, "⚠️ خطأ!")
 
 if __name__ == "__main__":
     t = threading.Thread(target=run_web)
     t.start()
     bot.infinity_polling()
-        
+                           

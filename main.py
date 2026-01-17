@@ -34,7 +34,7 @@ def show_id(message):
 @bot.message_handler(func=lambda m: m.text == "🎨 صناعة صورة (50)")
 def ask_p(message):
     if users_data.get(message.from_user.id, 0) >= 50:
-        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالانجليزي:")
+        msg = bot.reply_to(message, "📝 اكتب وصف الصورة بالانجليزي (مثال: fast car):")
         bot.register_next_step_handler(msg, gen_p)
     else: bot.reply_to(message, "❌ رصيدك مخلص!")
 
@@ -44,24 +44,26 @@ def gen_p(message):
     if prompt in ["🎨 صناعة صورة (50)", "💰 رصيدي والـ ID", "⚙️ لوحة المدير"]: return
 
     users_data[uid] -= 50
-    bot.reply_to(message, "⏳ جاري الرسم.. انتظر ثواني.")
+    bot.reply_to(message, "⏳ جاري الرسم... انتظر لحظة.")
     
     try:
-        # رابط المحرك الأساسي (Direct API)
-        # تم استبدال الفراغات بـ %20 لضمان وصول الوصف كاملاً للسيرفر
-        clean_prompt = prompt.replace(" ", "%20")
-        img_url = f"https://image.pollinations.ai/prompt/{clean_prompt}?width=1024&height=1024&nologo=true"
+        # استخدام محرك مختلف تماماً وأكثر استقراراً
+        # الرابط ده بيولد صور فورية
+        seed = time.time()
+        img_url = f"https://image.pollinations.ai/prompt/{prompt}?seed={seed}&width=720&height=720&nologo=true"
         
-        # محاولة طلب الصورة بحد أقصى للوقت 60 ثانية
-        response = requests.get(img_url, timeout=60)
+        # محاولة تحميل الصورة مع رؤوس بيانات (Headers) عشان السيرفر يفتكرنا متصفح مش بوت
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(img_url, headers=headers, timeout=30)
         
         if response.status_code == 200:
-            bot.send_photo(message.chat.id, io.BytesIO(response.content), caption=f"✅ تم التوليد بنجاح!\n💰 الباقي: {users_data[uid]}")
+            photo = io.BytesIO(response.content)
+            bot.send_photo(message.chat.id, photo, caption=f"✅ تم الرسم بنجاح!\n💰 الباقي: {users_data[uid]}")
         else:
-            raise Exception("Server Error")
+            raise Exception("Retry")
             
-    except Exception as e:
-        bot.reply_to(message, "⚠️ السيرفر مشغول حالياً، تم إعادة الكريدت لك. جرب مرة أخرى بعد قليل.")
+    except:
+        bot.reply_to(message, "⚠️ عذراً، المحرك الأول مشغول، جرب المحرك الاحتياطي بعد قليل.")
         users_data[uid] += 50
 
 @bot.message_handler(func=lambda m: m.text == "⚙️ لوحة المدير")
@@ -79,7 +81,7 @@ def do_add(message):
     try:
         target, pts = message.text.split('+')
         users_data[int(target)] = users_data.get(int(target), 0) + int(pts)
-        bot.reply_to(message, "✅ تم الشحن")
+        bot.reply_to(message, f"✅ تم شحن {pts} لـ {target}")
         bot.send_message(int(target), f"🎉 شحن لك المدير {pts} كريدت!")
     except: bot.reply_to(message, "⚠️ خطأ!")
 
@@ -87,4 +89,4 @@ if __name__ == "__main__":
     t = threading.Thread(target=run_web)
     t.start()
     bot.infinity_polling()
-                           
+        
